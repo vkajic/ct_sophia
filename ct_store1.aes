@@ -1,0 +1,325 @@
+contract CryptoTaskStore =
+
+    record state = {
+        owner : address,
+        ct_logic : address,
+        locked : bool,
+        profiles : map(int, profile),
+        tasks : map(int, task),
+        feedbacks : map(int, feedback),
+        lastTaskIndex : int,
+        lastProfileIndex : int,
+        lastFeedbackIndex : int,
+        keyToProfile : map(address, int) }        //NOT proof of profile ownership!!! Use profile.pubkey to check ownership
+
+    record profile = {
+        pubkey : address,
+        pubkey_old : address,       //in case of unauthorized pwd change (centralized backend abuse), old pwd still valid for a certain time period. during the same period withdrawals not possible
+        pwdChangedAtBlock : int,
+        pwdChangedByReset : int,    //in case that pwd was changed by resetting to old pwd (pubkey_old)
+        clientInfoHash : string,
+        clientScore : int,
+        clientNumJobs : int,
+        clientTasks : list(int),
+        flancerInfoHash : string,
+        flancerScore : int,
+        flancerNumJobs : int,
+        flancerTasks : list(int),
+        active : int,               //boolean, used by the platform to block users if needed, community management possible
+        managed : int,              //boolean behaviour, whether centralized backend is allowed to set a new pwd
+        version : int }        
+
+    record task = {
+        client : int,
+        infoHash : string,
+        status : int,                       //CREATED: 0, FILLED: 1, ACCEPTING: 2
+        published : int,                    //boolean, used by the platform to block tasks if needed, community management possible
+        //application section START
+        //application can be in ACCEPTED while an individual milestone can be FINISHED. If a milestone is CANCELED or REJECTED then so is the whole application
+        applicationStage : map(int, int),   //profile index to -> CREATED: 0, ACCEPTED: 1, FINISHED: 2, CANCELED: 3 (flancer cancelled), REJECTED: 4 (client cancelled)
+        appliedList : map(int, int),        //list of profile indexes of applied freelancers
+        lastAppliedIndex : int,
+        acceptedList : map(int, int),       //list of profile indexes of accepted freelancers
+        lastAcceptedIndex : int,
+        //milestone mappings START here
+        //profile_index*10 + milestone_index
+        //each application can have max 10 milestones, ie flancer1 would have milestones as indices 10 to 19, flancer2 20-29 etc
+        mstoneWorkplan : map(int, string),        //(profile_index*10 + milestone_index) to milestoneWorkplan
+        mstoneValue : map(int, int),
+        mstoneWorkTime : map(int, int),
+        mstoneEscrow : map(int, int),             //(profile_index*10 + milestone_index) to boolean
+        mstoneStage : map(int, int),              //CREATED: 0, ACCEPTED: 1, FINISHED: 2, CANCELED: 3 (flancer cancelled), REJECTED: 4 (client cancelled)
+        mstoneSolution : map(int, string),
+        //milestone mappings END here
+        feedbacks : map(int, int),
+        //application section END
+        version : int }
+
+    record feedback = {
+        taskID : int,
+        flancer : int,
+        clientsScore : int,
+        clientsText : string,
+        flancersScore : int,
+        flancersText : string,
+        version : int }
+
+
+
+    public stateful entrypoint init(logic_address : address) = {
+        owner = Call.origin,
+        ct_logic = logic_address,
+        locked = false,
+        profiles = {},
+        tasks = {},
+        feedbacks = {},
+        lastTaskIndex = 0,
+        lastProfileIndex = 0,
+        lastFeedbackIndex = 0,
+        keyToProfile = {} }
+
+
+    public stateful entrypoint setCtLogic(logic_address : address) = 
+        require(state.ct_logic == Call.caller || (state.owner == Call.caller && !state.locked), "Caller needs to be the logic contract or owner if the state contract is still unlocked")
+        put(state{ct_logic = logic_address})
+
+    public stateful entrypoint lock() = 
+        require(state.owner == Call.caller && !state.locked, "Caller needs to be the owner")
+        put(state{locked = true})
+
+
+ 
+    public stateful entrypoint setTask(index : int, client : int, infoHash : string, status : int, published : int, version : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+
+        let new_task : task = {
+            client = client,
+            infoHash = infoHash,
+            status = status,
+            published = published,
+            applicationStage = {},
+            appliedList = {},
+            lastAppliedIndex = 0,
+            acceptedList = {},
+            lastAcceptedIndex = 0,
+            mstoneWorkplan = {},
+            mstoneValue = {},
+            mstoneWorkTime = {},
+            mstoneEscrow = {},
+            mstoneStage = {},
+            mstoneSolution = {},
+            feedbacks = {},
+            version = version }
+
+        put(state{tasks[index] = new_task})
+
+    public stateful entrypoint setTaskInfoHash(index : int, infoHash : string) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].infoHash = infoHash})
+
+    public stateful entrypoint setTaskStatus(index : int, status : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].status = status})
+
+    public stateful entrypoint setTaskPublished(index : int, published : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].published = published})
+
+    public stateful entrypoint setTaskApplicationStage(index : int, flancer : int, applicationStage : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].applicationStage[flancer] = applicationStage})
+
+    public stateful entrypoint setTaskAppliedList(index : int, appliedListIndex : int, flancer : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].appliedList[appliedListIndex] = flancer })
+
+    public stateful entrypoint setTaskLastAppliedIndex(index : int, lastAppliedIndex : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].lastAppliedIndex = lastAppliedIndex })
+
+    public stateful entrypoint setTaskAcceptedList(index : int, acceptedListIndex : int, flancer : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].acceptedList[acceptedListIndex] = flancer })
+
+    public stateful entrypoint setTaskLastAcceptedIndex(index : int, lastAcceptedIndex : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].lastAcceptedIndex = lastAcceptedIndex })
+
+    public stateful entrypoint setTaskMstoneWorkplan(index : int, flancer : int, mstoneWorkplan : string) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].mstoneWorkplan[flancer] = mstoneWorkplan})
+
+    public stateful entrypoint setTaskMstoneValue(index : int, flancer : int, mstoneValue : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].mstoneValue[flancer] = mstoneValue})
+
+    public stateful entrypoint setTaskMstoneWorkTime(index : int, flancer : int, mstoneWorkTime : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].mstoneWorkTime[flancer] = mstoneWorkTime})
+
+    public stateful entrypoint setTaskMstoneEscrow(index : int, flancer : int, mstoneEscrow : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].mstoneEscrow[flancer] = mstoneEscrow})
+
+    public stateful entrypoint setTaskMstoneStage(index : int, flancer : int, mstoneStage : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].mstoneStage[flancer] = mstoneStage})
+
+    public stateful entrypoint setTaskMstoneSolution(index : int, flancer : int, mstoneSolution : string) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].mstoneSolution[flancer] = mstoneSolution})
+
+    public stateful entrypoint setTaskFeedback(index : int, flancer : int, feedback : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].feedbacks[flancer] = feedback})
+
+    public stateful entrypoint setTaskVersion(index : int, version : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].version = version})
+
+
+    public stateful entrypoint setProfile(index : int, pubkey : address, clientInfoHash : string, flancerInfoHash : string, active : int, managed : int, version : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+
+        let new_profile : profile = {
+            pubkey = pubkey,
+            pubkey_old = pubkey,
+            pwdChangedAtBlock = 0,
+            pwdChangedByReset = 0,
+            clientInfoHash = clientInfoHash,
+            clientScore = 0,
+            clientNumJobs = 0,
+            clientTasks = [],
+            flancerInfoHash = flancerInfoHash,
+            flancerScore = 0,
+            flancerNumJobs = 0,
+            flancerTasks = [],
+            active = active,
+            managed = managed,
+            version = version }
+
+        put(state{profiles[index] = new_profile})
+
+    public stateful entrypoint setProfilePubkey(index : int, pubkey : address) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].pubkey = pubkey})
+
+    public stateful entrypoint setProfilePubkeyOld(index : int, pubkey_old : address) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].pubkey_old = pubkey_old})
+
+    public stateful entrypoint setProfilePwdChangedAtBlock(index : int, pwdChangedAtBlock : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].pwdChangedAtBlock = pwdChangedAtBlock})
+
+    public stateful entrypoint setProfilePwdChangedByReset(index : int, pwdChangedByReset : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].pwdChangedByReset = pwdChangedByReset})
+
+    public stateful entrypoint setProfileClientInfoHash(index : int, clientInfoHash : string) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].clientInfoHash = clientInfoHash})
+
+    public stateful entrypoint setProfileClientScore(index : int, clientScore : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].clientScore = clientScore})
+
+    public stateful entrypoint setProfileClientNumJobs(index : int, clientNumJobs : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].clientNumJobs = clientNumJobs})
+
+    public stateful entrypoint addProfileClientTask(index : int, task : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].clientTasks = state.profiles[index].clientTasks ++ [task]})
+
+    public stateful entrypoint setProfileFlancerInfoHash(index : int, flancerInfoHash : string) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].flancerInfoHash = flancerInfoHash})
+
+    public stateful entrypoint setProfileFlancerScore(index : int, flancerScore : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].flancerScore = flancerScore})
+
+    public stateful entrypoint setProfileFlancerNumJobs(index : int, flancerNumJobs : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].flancerNumJobs = flancerNumJobs})
+
+    public stateful entrypoint addProfileFlancerTask(index : int, task : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].flancerTasks = state.profiles[index].flancerTasks ++ [task]})
+
+    public stateful entrypoint setProfileActive(index : int, active : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].active = active})
+
+    public stateful entrypoint setProfileManaged(index : int, managed : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].managed = managed})
+
+    public stateful entrypoint setProfileVersion(index : int, version : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].version = version})
+
+
+    public stateful entrypoint setFeedback(index : int, taskID : int, flancer : int, clientsScore : int, clientsText : string, flancersScore : int, flancersText : string, version : int) =      
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+
+        let new_feedback : feedback = {
+            taskID = taskID,
+            flancer = flancer,
+            clientsScore = clientsScore,
+            clientsText = clientsText,
+            flancersScore = flancersScore,
+            flancersText = flancersText,
+            version = version }
+
+        put(state{feedbacks[index] = new_feedback})
+
+
+
+    public entrypoint getOwner() =
+        state.owner
+
+    public entrypoint getCtLogic() =
+        state.ct_logic
+
+    public entrypoint isLocked() =
+        state.locked
+
+    public entrypoint getTask(index: int) =
+        state.tasks[index]
+
+    public entrypoint getLastTaskIndex() =
+        state.lastTaskIndex
+
+    public stateful entrypoint setLastTaskIndex(index : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{lastTaskIndex = index})
+
+    public entrypoint getProfile(index: int) =
+        state.profiles[index]
+
+    public entrypoint getLastProfileIndex() =
+        state.lastProfileIndex
+
+    public stateful entrypoint setLastProfileIndex(index : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{lastProfileIndex = index})
+
+    public entrypoint getFeedback(index: int) =
+        state.feedbacks[index]
+
+    public entrypoint getLastFeedbackIndex() =
+        state.lastFeedbackIndex
+
+    public stateful entrypoint setLastFeedbackIndex(index : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{lastFeedbackIndex = index})
+
+    public entrypoint getKeyToProfile(pubkey: address) =
+        state.keyToProfile[pubkey=0]
+
+    public stateful entrypoint setKeyToProfile(pubkey: address, index : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{keyToProfile[pubkey] = index})
+

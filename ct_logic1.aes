@@ -1,0 +1,414 @@
+contract CtStoreType =
+    record profile = {
+        pubkey : address,
+        pubkey_old : address,       //in case of unauthorized pwd change, old pwd still valid for a certain time period. during the same period withdrawals not possible
+        pwdChangedAtBlock : int,
+        pwdChangedByReset : int,
+        clientInfoHash : string,
+        clientScore : int,
+        clientNumJobs : int,
+        clientTasks : list(int),
+        flancerInfoHash : string,
+        flancerScore : int,
+        flancerNumJobs : int,
+        flancerTasks : list(int),
+        active : int,
+        managed : int,              //boolean behaviour
+        version : int }   
+
+    record task = {
+        client : int,
+        infoHash : string,
+        status : int,
+        published : int,
+        applicationStage : map(int, int),
+        appliedList : map(int, int),   //list of profile indexes of applied freelancers
+        lastAppliedIndex : int,
+        acceptedList : map(int, int),   //list of profile indexes of accepted freelancers
+        lastAcceptedIndex : int,
+        mstoneWorkplan : map(int, string),
+        mstoneValue : map(int, int),
+        mstoneWorkTime : map(int, int),
+        mstoneEscrow : map(int, int),        //boolean behaviour
+        mstoneStage : map(int, int),
+        mstoneSolution : map(int, string),
+        feedbacks : map(int, int),
+        version : int }
+
+    record feedback = {
+        taskID : int,
+        flancer : int,
+        clientsScore : int,
+        clientsText : string,
+        flancersScore : int,
+        flancersText : string,
+        version : int }
+
+
+    entrypoint setCtLogic : address => unit
+    entrypoint setProfile : (int, address, string, string, int, int, int) => unit
+    entrypoint getProfile : int => profile
+    entrypoint getLastProfileIndex : () => int
+    entrypoint setLastProfileIndex : int => unit
+    entrypoint getKeyToProfile : address => int
+    entrypoint setKeyToProfile : (address, int) => unit
+    entrypoint setProfilePubkey : (int, address) => unit
+    entrypoint setProfilePubkeyOld : (int, address) => unit
+    entrypoint setProfilePwdChangedAtBlock : (int, int) => unit
+    entrypoint setProfilePwdChangedByReset : (int, int) => unit
+    entrypoint setProfileClientInfoHash : (int, string) => unit
+    entrypoint addProfileClientTask : (int, int) => unit
+    entrypoint setProfileFlancerInfoHash : (int, string) => unit
+    entrypoint addProfileFlancerTask : (int, int) => unit
+    entrypoint setProfileManaged : (int, int) => unit
+    entrypoint setTask : (int, int, string, int, int, int) => unit
+    entrypoint getTask : int => task
+    entrypoint getLastTaskIndex : () => int
+    entrypoint setLastTaskIndex : int => unit
+    entrypoint setTaskInfoHash : (int, string) => unit
+    entrypoint setTaskStatus : (int, int) => unit
+    entrypoint setTaskApplicationStage : (int, int, int) => unit
+    entrypoint setTaskAppliedList : (int, int, int) => unit
+    entrypoint setTaskLastAppliedIndex : (int, int) => unit
+    entrypoint setTaskAcceptedList : (int, int, int) => unit
+    entrypoint setTaskLastAcceptedIndex : (int, int) => unit
+    entrypoint setTaskMstoneWorkplan : (int, int, string) => unit
+    entrypoint setTaskMstoneStage : (int, int, int) => unit
+    entrypoint setFeedback : (int, int, int, int, string, int, string, int) => unit
+    entrypoint getFeedback : int => feedback
+    entrypoint getLastFeedbackIndex : () => int
+    entrypoint setLastFeedbackIndex : int => unit
+
+
+
+contract CryptoTaskLogic =
+
+    record state = {
+        owner : address,
+        ct_store : CtStoreType,
+        logicVersion : int,
+        timePeriod : int,       //time period in blocks that needs to pass after the pwd change before funds can be withdrawn, also pwd reset possible within time period
+        nonces : map(address, int) }
+
+
+    public stateful entrypoint init(store_address : CtStoreType) = {
+        owner = Call.origin,
+        ct_store = store_address,
+        logicVersion = 1,
+        timePeriod = 1440,      //3 days assuming 3 minute block time
+        nonces = {} }
+
+
+    public entrypoint getNonce(pubkey: address) =
+        state.nonces[pubkey=0]  
+
+
+    public stateful entrypoint signUp(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, clientInfoHash : string, flancerInfoHash : string, managed : int) =
+        require(functionName == "signUp" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(clientInfoHash, String.concat(flancerInfoHash, Int.to_str(managed) ))))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        require(state.ct_store.getKeyToProfile(pubkey) == 0, "Pubkey already in use")
+        let pi = state.ct_store.getLastProfileIndex() + 1
+        state.ct_store.setKeyToProfile(pubkey, pi)
+        state.ct_store.setProfile(pi, pubkey, clientInfoHash, flancerInfoHash, 1, managed, 1)
+        state.ct_store.setLastProfileIndex(pi)
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1}) 
+
+        pi
+        
+
+    public stateful entrypoint editProfile(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, clientInfoHash : string, flancerInfoHash : string, managed : int) =
+        require(functionName == "editProfile" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(clientInfoHash, String.concat(flancerInfoHash, Int.to_str(managed) ))))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        state.ct_store.setProfileClientInfoHash(pi, clientInfoHash)
+        state.ct_store.setProfileFlancerInfoHash(pi, flancerInfoHash)
+        state.ct_store.setProfileManaged(pi, managed)
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
+
+
+    public stateful entrypoint changePwd(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, pubkey_new : address) =
+        require(functionName == "changePwd" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, Address.to_str(pubkey_new)))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        require(state.ct_store.getKeyToProfile(pubkey_new) == 0, "New pubkey already in use")
+        require(Chain.block_height - profile.pwdChangedAtBlock > state.timePeriod, "Time period has not passed yet")
+
+        state.ct_store.setKeyToProfile(pubkey_new, pi)
+        state.ct_store.setProfilePubkeyOld(pi, pubkey)
+        state.ct_store.setProfilePubkey(pi, pubkey_new)
+        state.ct_store.setProfilePwdChangedAtBlock(pi, Chain.block_height)
+        state.ct_store.setProfilePwdChangedByReset(pi, 0)
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
+
+
+    //centralized backend can change pwd for a managed account
+    public stateful entrypoint changePwdManaged(pi : int, pubkey_new : address) =
+        require(Call.origin == state.owner, "Only contract owner can call this function")        
+        let profile = state.ct_store.getProfile(pi)
+        require(profile.managed > 0, "Profile needs to be in managed state")
+        require(state.ct_store.getKeyToProfile(pubkey_new) == 0, "New pubkey already in use")
+        require(Chain.block_height - profile.pwdChangedAtBlock > state.timePeriod, "Time period has not passed yet")
+
+        state.ct_store.setKeyToProfile(pubkey_new, pi)
+        state.ct_store.setProfilePubkeyOld(pi, profile.pubkey)
+        state.ct_store.setProfilePubkey(pi, pubkey_new)
+        state.ct_store.setProfilePwdChangedAtBlock(pi, Chain.block_height)
+        state.ct_store.setProfilePwdChangedByReset(pi, 0)
+        
+
+    //reset to the old pwd if within the time period, used if user thinks that centralized backend abused changePwdManaged
+    public stateful entrypoint resetPwd(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string) =
+        require(functionName == "changePwd" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), functionName)) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        require(profile.pubkey_old == pubkey, "Profile was not owned by the transaction signer")
+        require(Chain.block_height - profile.pwdChangedAtBlock < state.timePeriod, "Time period has passed")
+
+        state.ct_store.setKeyToProfile(pubkey, pi)
+        state.ct_store.setProfilePubkey(pi, pubkey)
+        state.ct_store.setProfilePwdChangedAtBlock(pi, Chain.block_height)
+        state.ct_store.setProfilePwdChangedByReset(pi, 1)
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
+
+
+    public stateful entrypoint postTask(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, infoHash : string) =
+        require(functionName == "postTask" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, infoHash))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        let ti = state.ct_store.getLastTaskIndex() + 1
+        state.ct_store.setTask(ti, pi, infoHash, 0, 1, 1)
+        state.ct_store.setLastTaskIndex(ti)
+
+        state.ct_store.addProfileClientTask(pi, ti)
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1}) 
+
+        ti
+
+
+    //editing a task only possible if no flancers applied yet
+    public stateful entrypoint editTask(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int, infoHash : string) =
+        require(functionName == "editTask" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(Int.to_str(ti), infoHash)))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        let task = state.ct_store.getTask(ti)
+        require(task.client == pi, "You can only edit your own tasks")
+
+        require(task.lastAppliedIndex == 0, "You can only edit tasks that no freelancers have applied to")
+
+        state.ct_store.setTaskInfoHash(ti, infoHash)
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1}) 
+
+
+    //no new freelancer applications, status 1 (filled) indicates the task is not open to freelancer applications
+    public stateful entrypoint closeApplications(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int) =
+        require(functionName == "closeApplications" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, Int.to_str(ti)))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        let task = state.ct_store.getTask(ti)
+        require(task.client == pi, "You can only close your own tasks")
+
+        state.ct_store.setTaskStatus(ti, 1)
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
+
+
+    //reopen task for applications
+    public stateful entrypoint reopenApplications(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int) =
+        require(functionName == "reopenApplications" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, Int.to_str(ti)))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        let task = state.ct_store.getTask(ti)
+        require(task.client == pi, "You can only reopen your own tasks")
+        require(task.status == 1, "Task needs to be in filled status")
+
+        state.ct_store.setTaskStatus(ti, 2)
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
+
+
+    public stateful entrypoint applyForTask(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int) =
+        require(functionName == "applyForTask" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, Int.to_str(ti) ))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        require(profile.flancerInfoHash != "", "User doesn't have the freelancer profile set")
+        let task = state.ct_store.getTask(ti)
+        require(task.applicationStage[pi=999] == 999, "User already applied")
+        require(task.status == 0 || task.status == 2, "Task needs to be opened to applications")    //0 means created, 2 means reopened to applications
+
+        let li = task.lastAppliedIndex + 1
+        state.ct_store.setTaskAppliedList(ti, li, pi)
+        state.ct_store.setTaskLastAppliedIndex(ti, li)
+        state.ct_store.setTaskApplicationStage(ti, pi, 0)
+        state.ct_store.setTaskMstoneStage(ti, pi*10, 0)
+        //save current task infoHash as mstoneWorkplan (in case the client edits the task description later), as milestone0
+        state.ct_store.setTaskMstoneWorkplan(ti, pi*10, task.infoHash)
+
+        state.ct_store.addProfileFlancerTask(pi, ti)
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1}) 
+
+
+    //limitted number of accepted flancers
+    //after accepting a flancer, task status set to 1 (filled) - indicates the task is not open to new freelancer applications, can be reopened later
+    public stateful entrypoint acceptForTask(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int, flancer : int) =
+        require(functionName == "acceptForTask" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(Int.to_str(ti), Int.to_str(flancer) )))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        let task = state.ct_store.getTask(ti)
+        require(task.client == pi, "You can only accept freelancers for your own tasks")
+        require(task.applicationStage[flancer=999] == 0, "This freelancer has not applied")
+
+        let li = task.lastAcceptedIndex + 1
+        state.ct_store.setTaskAcceptedList(ti, li, flancer)
+        state.ct_store.setTaskLastAcceptedIndex(ti, li)
+        state.ct_store.setTaskApplicationStage(ti, flancer, 1)
+        state.ct_store.setTaskMstoneStage(ti, flancer*10, 1)
+
+        state.ct_store.setTaskStatus(ti, 1)
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
+
+
+    //client accepts flancer's work
+    public stateful entrypoint finalize(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int, flancer : int, flancersScore : int, flancersText : string) =
+        require(functionName == "finalize" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(Int.to_str(ti), String.concat(Int.to_str(flancer), String.concat(Int.to_str(flancersScore), flancersText )))))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        let task = state.ct_store.getTask(ti)
+        require(task.client == pi, "You can only finalize applications on your own tasks")
+        require(task.applicationStage[flancer=999] == 1, "This freelancer is not working on this task")
+
+        state.ct_store.setTaskApplicationStage(ti, flancer, 2)
+        state.ct_store.setTaskMstoneStage(ti, flancer*10, 2)
+
+        let fi = state.ct_store.getLastFeedbackIndex() + 1
+        require(flancersScore >= 1 && flancersScore =< 5 && flancersText != "", "Feedback score must be 1 to 5 and text non empty")
+        state.ct_store.setFeedback(fi, ti, flancer, 0, "", flancersScore, flancersText, 1)
+        state.ct_store.setLastFeedbackIndex(fi)
+
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
+
+
+    //freelancer can cancel an active work contract (application)
+    public stateful entrypoint cancelContractFlancer(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int, clientsScore : int, clientsText : string) =
+        require(functionName == "cancelContractFlancer" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(Int.to_str(ti), String.concat(Int.to_str(clientsScore), clientsText))))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        let task = state.ct_store.getTask(ti)
+        require(task.applicationStage[pi=999] == 1, "You are not working on this task")
+
+        state.ct_store.setTaskApplicationStage(ti, pi, 3)
+        state.ct_store.setTaskMstoneStage(ti, pi*10, 3)
+
+        let fi = state.ct_store.getLastFeedbackIndex() + 1
+        require(clientsScore >= 1 && clientsScore =< 5 && clientsText != "", "Feedback score must be 1 to 5 and text non empty")
+        state.ct_store.setFeedback(fi, ti, pi, clientsScore, clientsText, 0, "", 1)
+        state.ct_store.setLastFeedbackIndex(fi)
+
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
+
+
+    //client can cancel an active work contract (application)
+    public stateful entrypoint cancelContractClient(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int, flancer : int, flancersScore : int, flancersText : string) =
+        require(functionName == "cancelContractClient" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(Int.to_str(ti), String.concat(Int.to_str(flancer), String.concat(Int.to_str(flancersScore), flancersText )))))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        let task = state.ct_store.getTask(ti)
+        require(task.client == pi, "You can only cancel applications on your own tasks")
+        require(task.applicationStage[flancer=999] == 1, "This freelancer is not working on this task")
+
+        state.ct_store.setTaskApplicationStage(ti, flancer, 3)
+        state.ct_store.setTaskMstoneStage(ti, flancer*10, 3)
+
+        let fi = state.ct_store.getLastFeedbackIndex() + 1
+        require(flancersScore >= 1 && flancersScore =< 5 && flancersText != "", "Feedback score must be 1 to 5 and text non empty")
+        state.ct_store.setFeedback(fi, ti, flancer, 0, "", flancersScore, flancersText, 1)
+        state.ct_store.setLastFeedbackIndex(fi)
+
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
+
+
+    public stateful entrypoint leaveFeedbackClient(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int, flancer : int, flancersScore : int, flancersText : string) =
+        require(functionName == "leaveFeedbackClient" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(Int.to_str(ti), String.concat(Int.to_str(flancer), String.concat(Int.to_str(flancersScore), flancersText )))))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        let task = state.ct_store.getTask(ti)
+        require(task.client == pi, "You can only leave feedback on your own tasks")
+
+        let fi = task.feedbacks[flancer]
+        let feedback = state.ct_store.getFeedback(fi)
+        require(flancersScore >= 1 && flancersScore =< 5 && flancersText != "", "Feedback score must be 1 to 5 and text non empty")
+        require(feedback.flancersScore == 0, "Feedback was already set")
+        state.ct_store.setFeedback(fi, ti, flancer, feedback.clientsScore, feedback.clientsText, flancersScore, flancersText, 1)
+
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
+
+
+    public stateful entrypoint leaveFeedbackFlancer(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int, clientsScore : int, clientsText : string) =
+        require(functionName == "leaveFeedbackFlancer" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(Int.to_str(ti), String.concat(Int.to_str(clientsScore), clientsText))))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+
+        let (profile, pi) = getMyProfile(pubkey)
+        let task = state.ct_store.getTask(ti)
+        require(task.applicationStage[pi=999] == 2 || task.applicationStage[pi=999] == 4, "You have not been working on this task")
+
+        let fi = task.feedbacks[pi]
+        let feedback = state.ct_store.getFeedback(fi)
+        require(clientsScore >= 1 && clientsScore =< 5 && clientsText != "", "Feedback score must be 1 to 5 and text non empty")
+        require(feedback.clientsScore == 0, "Feedback was already set")
+        state.ct_store.setFeedback(fi, ti, pi, clientsScore, clientsText, feedback.flancersScore, feedback.flancersText, 1)
+
+        put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
+
+
+
+
+
+    /* "Escrowed" set of functions MUST be used if an application is to have multiple milestones.
+     It is possible to have a non-escrowed application with one milestone and it is also possible to have an escrowed application with one milestone.
+     It is NOT possible (nor needed) to have a non-escrowed application with multiple milestones. */
+    //TODO
+    //in case of escrowed tasks, client calls this function to hire a freelancer and at the same time sets work plan (duration etc) and escrow
+    //limitted number of accepted flancers
+    public stateful entrypoint acceptForTaskEscrowed() = { }
+
+    //TODO
+    //freelancer can decide whether to accept workplan suggested by the client, for escrowed tasks
+    public stateful entrypoint acceptWorkplanEscrowed() = { }
+
+    //TODO
+    //client accepts flancer's work and releases escrow
+    //flag to define whether to finalize just the milestone or also the whole application
+    public stateful entrypoint finalizeEscrowed() = { }
+
+    //TODO
+    //either client or freelancer can cancel an active work contract (application)
+    //if cancelled by flancer, client receives back the escrow. if cancelled by client, flancer can setSolutionEscrowed() and then startDisputeEscrowed()
+    public stateful entrypoint cancelContractEscrowed() = { }
+
+    //TODO
+    //if task was cancelled by client, flancer can set solution - chat-hash-chain (hash(msg+hash_prev(...))) and then startDisputeEscrowed()
+    public stateful entrypoint setSolutionEscrowed() = { }
+
+    //TODO
+    public stateful entrypoint startDisputeEscrowed() = { }
+
+    //TODO
+    public stateful entrypoint commitDisputeEscrowed() = { }
+
+
+
+    //TODO
+    //withdrawal not possible if pwd was changed recently, possible after timePeriod (unless if changed by resetPwd, pwdChangedByReset is true)
+    public stateful entrypoint withdraw() = { }
+
+    //ADVANCED / OPTIONAL
+    //withdrawal a 2 stage action, even if pwd hacked, user can switch back to pwd_old
+    //any pwd change invalidates withdrawCommitFlag that was set in this function
+    //because of time delay between withdrawCommit() and withdraw() special nonce to be used, ie nonceW
+    //public stateful entrypoint withdrawCommit() = { }
+
+
+
+    private function getMyProfile(pubkey: address) =
+        let pi = state.ct_store.getKeyToProfile(pubkey)
+        require(pi > 0, "Profile doesn't exist")       
+        let profile = state.ct_store.getProfile(pi)
+        require(profile.pubkey == pubkey, "Profile not owned by the transaction signer")
+
+        (profile, pi)
