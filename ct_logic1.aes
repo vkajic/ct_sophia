@@ -172,7 +172,9 @@ contract CryptoTaskLogic =
     public stateful entrypoint resetPwd(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string) =
         require(functionName == "resetPwd" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), functionName)) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
 
-        let (profile, pi) = getMyProfile(pubkey)
+        let pi = state.ct_store.getKeyToProfile(pubkey)
+        require(pi > 0, "Profile doesn't exist")
+        let profile = state.ct_store.getProfile(pi)
         require(profile.pubkey_old == pubkey, "Profile was not owned by the transaction signer")
         require(Chain.block_height - profile.pwdChangedAtBlock < state.timePeriod, "Time period has passed")
 
