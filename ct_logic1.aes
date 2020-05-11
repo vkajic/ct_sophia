@@ -99,6 +99,18 @@ contract CryptoTaskLogic =
         nonces = {} }
 
 
+    public entrypoint getOwner() =
+        state.owner
+
+    public entrypoint getCtStore() =
+        state.ct_store
+
+    public entrypoint getLogicVersion() =
+        state.logicVersion
+
+    public entrypoint getTimePeriod() =
+        state.timePeriod
+
     public entrypoint getNonce(pubkey: address) =
         state.nonces[pubkey=0]  
 
@@ -400,7 +412,6 @@ contract CryptoTaskLogic =
     //ADVANCED / OPTIONAL
     //withdrawal a 2 stage action, even if pwd hacked, user can switch back to pwd_old
     //any pwd change invalidates withdrawCommitFlag that was set in this function
-    //because of time delay between withdrawCommit() and withdraw() special nonce to be used, ie nonceW
     //public stateful entrypoint withdrawCommit() = { }
 
 
