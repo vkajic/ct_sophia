@@ -91,10 +91,10 @@ contract CryptoTaskLogic =
         nonces : map(address, int) }
 
 
-    public stateful entrypoint init(store_address : CtStoreType) = {
+    public stateful entrypoint init(store_address : CtStoreType, lv : int) = {
         owner = Call.origin,
         ct_store = store_address,
-        logicVersion = 1,
+        logicVersion = lv,
         timePeriod = 1440,      //3 days assuming 3 minute block time
         nonces = {} }
 
@@ -170,7 +170,7 @@ contract CryptoTaskLogic =
 
     //reset to the old pwd if within the time period, used if user thinks that centralized backend abused changePwdManaged
     public stateful entrypoint resetPwd(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string) =
-        require(functionName == "changePwd" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), functionName)) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+        require(functionName == "resetPwd" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), functionName)) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
 
         let (profile, pi) = getMyProfile(pubkey)
         require(profile.pubkey_old == pubkey, "Profile was not owned by the transaction signer")
