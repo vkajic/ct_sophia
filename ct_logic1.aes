@@ -325,8 +325,8 @@ contract CryptoTaskLogic =
         require(task.client == pi, "You can only cancel applications on your own tasks")
         require(task.applicationStage[flancer=999] == 1, "This freelancer is not working on this task")
 
-        state.ct_store.setTaskApplicationStage(ti, flancer, 3)
-        state.ct_store.setTaskMstoneStage(ti, flancer*10, 3)
+        state.ct_store.setTaskApplicationStage(ti, flancer, 4)
+        state.ct_store.setTaskMstoneStage(ti, flancer*10, 4)
 
         let fi = state.ct_store.getLastFeedbackIndex() + 1
         require(flancersScore >= 1 && flancersScore =< 5 && flancersText != "", "Feedback score must be 1 to 5 and text non empty")
@@ -342,6 +342,7 @@ contract CryptoTaskLogic =
         let (profile, pi) = getMyProfile(pubkey)
         let task = state.ct_store.getTask(ti)
         require(task.client == pi, "You can only leave feedback on your own tasks")
+        require(task.applicationStage[flancer=999] == 3, "Freelancer has not cancelled this task")
 
         let fi = task.feedbacks[flancer]
         let feedback = state.ct_store.getFeedback(fi)
