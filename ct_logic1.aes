@@ -207,7 +207,8 @@ contract CryptoTaskLogic =
         let task = state.ct_store.getTask(ti)
         require(task.client == pi, "You can only edit your own tasks")
 
-        require(task.lastAppliedIndex == 0, "You can only edit tasks that no freelancers have applied to")
+        //mstoneWorkplan is binding, task info is non-binding
+        //require(task.lastAppliedIndex == 0, "You can only edit tasks that no freelancers have applied to")
 
         state.ct_store.setTaskInfoHash(ti, infoHash)
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1}) 
