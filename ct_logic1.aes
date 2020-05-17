@@ -60,6 +60,10 @@ contract CtStoreType =
     entrypoint addProfileClientTask : (int, int) => unit
     entrypoint setProfileFlancerInfoHash : (int, string) => unit
     entrypoint addProfileFlancerTask : (int, int) => unit
+    entrypoint setProfileClientScore : (int, int) => unit
+    entrypoint setProfileClientNumJobs : (int, int) => unit
+    entrypoint setProfileFlancerScore : (int, int) => unit
+    entrypoint setProfileFlancerNumJobs : (int, int) => unit
     entrypoint setProfileManaged : (int, int) => unit
     entrypoint setTask : (int, int, string, int, int, int) => unit
     entrypoint getTask : int => task
@@ -74,6 +78,7 @@ contract CtStoreType =
     entrypoint setTaskLastAcceptedIndex : (int, int) => unit
     entrypoint setTaskMstoneWorkplan : (int, int, string) => unit
     entrypoint setTaskMstoneStage : (int, int, int) => unit
+    entrypoint setTaskFeedback : (int, int, int) => unit
     entrypoint setFeedback : (int, int, int, int, string, int, string, int) => unit
     entrypoint getFeedback : int => feedback
     entrypoint getLastFeedbackIndex : () => int
@@ -297,6 +302,10 @@ contract CryptoTaskLogic =
         require(flancersScore >= 1 && flancersScore =< 5 && flancersText != "", "Feedback score must be 1 to 5 and text non empty")
         state.ct_store.setFeedback(fi, ti, flancer, 0, "", flancersScore, flancersText, 1)
         state.ct_store.setLastFeedbackIndex(fi)
+        state.ct_store.setTaskFeedback(ti, flancer, fi)
+        let profileFlancer = state.ct_store.getProfile(flancer)
+        state.ct_store.setProfileFlancerScore(flancer, profileFlancer.flancerScore + flancersScore)
+        state.ct_store.setProfileFlancerNumJobs(flancer, profileFlancer.flancerNumJobs + 1)
 
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
 
@@ -316,6 +325,10 @@ contract CryptoTaskLogic =
         require(clientsScore >= 1 && clientsScore =< 5 && clientsText != "", "Feedback score must be 1 to 5 and text non empty")
         state.ct_store.setFeedback(fi, ti, pi, clientsScore, clientsText, 0, "", 1)
         state.ct_store.setLastFeedbackIndex(fi)
+        state.ct_store.setTaskFeedback(ti, pi, fi)
+        let profileClient = state.ct_store.getProfile(task.client)
+        state.ct_store.setProfileClientScore(task.client, profileClient.clientScore + clientsScore)
+        state.ct_store.setProfileClientNumJobs(task.client, profileClient.clientNumJobs + 1)
 
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
 
@@ -336,6 +349,10 @@ contract CryptoTaskLogic =
         require(flancersScore >= 1 && flancersScore =< 5 && flancersText != "", "Feedback score must be 1 to 5 and text non empty")
         state.ct_store.setFeedback(fi, ti, flancer, 0, "", flancersScore, flancersText, 1)
         state.ct_store.setLastFeedbackIndex(fi)
+        state.ct_store.setTaskFeedback(ti, flancer, fi)
+        let profileFlancer = state.ct_store.getProfile(flancer)
+        state.ct_store.setProfileFlancerScore(flancer, profileFlancer.flancerScore + flancersScore)
+        state.ct_store.setProfileFlancerNumJobs(flancer, profileFlancer.flancerNumJobs + 1)
 
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
 
@@ -353,6 +370,9 @@ contract CryptoTaskLogic =
         require(flancersScore >= 1 && flancersScore =< 5 && flancersText != "", "Feedback score must be 1 to 5 and text non empty")
         require(feedback.flancersScore == 0, "Feedback was already set")
         state.ct_store.setFeedback(fi, ti, flancer, feedback.clientsScore, feedback.clientsText, flancersScore, flancersText, 1)
+        let profileFlancer = state.ct_store.getProfile(flancer)
+        state.ct_store.setProfileFlancerScore(flancer, profileFlancer.flancerScore + flancersScore)
+        state.ct_store.setProfileFlancerNumJobs(flancer, profileFlancer.flancerNumJobs + 1)
 
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
 
@@ -369,6 +389,9 @@ contract CryptoTaskLogic =
         require(clientsScore >= 1 && clientsScore =< 5 && clientsText != "", "Feedback score must be 1 to 5 and text non empty")
         require(feedback.clientsScore == 0, "Feedback was already set")
         state.ct_store.setFeedback(fi, ti, pi, clientsScore, clientsText, feedback.flancersScore, feedback.flancersText, 1)
+        let profileClient = state.ct_store.getProfile(task.client)
+        state.ct_store.setProfileClientScore(task.client, profileClient.clientScore + clientsScore)
+        state.ct_store.setProfileClientNumJobs(task.client, profileClient.clientNumJobs + 1)
 
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
 
