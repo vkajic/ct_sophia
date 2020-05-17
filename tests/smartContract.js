@@ -4,7 +4,7 @@ const bip39 = require('bip39');
 
 const bc = {
   url: "https://sdk-testnet.aepps.com",
-  address: "ct_UJoMNLUg3KTFJywqYh1u3KUeRBPjgNcscbu4Lu1GVAGeuH6jK",
+  address: "ct_2SfyEMTfKzUR5pEhNrUdrqd7xJvwuED4hhS89oWLxDDxwgfUqA",
   //address: "ct_2YhSJQakfc2euw5mzd7KPYdyzWXx6onYw45G2iJUVTg9xbLXA6",
   seed: "d#45!dsET99221k888aWqkdmc1llo"
 };
