@@ -245,6 +245,7 @@ contract CryptoTaskLogic =
         let (profile, pi) = getMyProfile(pubkey)
         require(profile.flancerInfoHash != "", "User doesn't have the freelancer profile set")
         let task = state.ct_store.getTask(ti)
+        require(task.client != pi, "You cannot apply on your own tasks")
         require(task.applicationStage[pi=999] == 999, "User already applied")
         require(task.status == 0 || task.status == 2, "Task needs to be opened to applications")    //0 means created, 2 means reopened to applications
 
