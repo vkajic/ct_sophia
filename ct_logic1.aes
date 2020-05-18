@@ -90,10 +90,10 @@ contract CryptoTaskLogic =
 
     record state = {
         owner : address,
-        ct_store : CtStoreType,
-        logicVersion : int,     //to protect against replay attacks if logic contract is updated to a new version and nonces start from 0 again
-        timePeriod : int,       //time period in blocks that needs to pass after the pwd change before funds can be withdrawn, also pwd reset possible within time period
-        nonces : map(address, int) }
+        ct_store : CtStoreType,         //address of the storage contract
+        logicVersion : int,             //to protect against replay attacks if logic contract is updated to a new version and nonces start from 0 again
+        timePeriod : int,               //time period in blocks that needs to pass after the pwd change before funds can be withdrawn, also pwd reset possible within time period
+        nonces : map(address, int) }    //nonces are used because a centralized backend can be forwarding users' signed messages (so that users don't need to worry about gas) - but this means nonces must be used on the contract level to protect against replay attacks
 
 
     public stateful entrypoint init(store_address : CtStoreType, lv : int) = {
@@ -121,6 +121,7 @@ contract CryptoTaskLogic =
 
 
     public stateful entrypoint signUp(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, clientInfoHash : string, flancerInfoHash : string, managed : int) =
+        //this check is used because centralized backend can be forwarding users' signed calls. It is checked that all arguments and meta-arguments were signed by the provided pubkey
         require(functionName == "signUp" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(clientInfoHash, String.concat(flancerInfoHash, Int.to_str(managed) ))))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
 
         require(state.ct_store.getKeyToProfile(pubkey) == 0, "Pubkey already in use")
@@ -204,7 +205,6 @@ contract CryptoTaskLogic =
         ti
 
 
-    //editing a task only possible if no flancers applied yet
     public stateful entrypoint editTask(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int, infoHash : string) =
         require(functionName == "editTask" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(Int.to_str(ti), infoHash)))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
 
@@ -357,6 +357,7 @@ contract CryptoTaskLogic =
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
 
 
+    //client can leave feedback after flancer cancelled an active work contract (application)
     public stateful entrypoint leaveFeedbackClient(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int, flancer : int, flancersScore : int, flancersText : string) =
         require(functionName == "leaveFeedbackClient" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(Int.to_str(ti), String.concat(Int.to_str(flancer), String.concat(Int.to_str(flancersScore), flancersText )))))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
 
@@ -377,6 +378,7 @@ contract CryptoTaskLogic =
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
 
 
+    //flancer can leave feedback after client cancelled an active work contract (application)
     public stateful entrypoint leaveFeedbackFlancer(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int, clientsScore : int, clientsText : string) =
         require(functionName == "leaveFeedbackFlancer" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(Int.to_str(ti), String.concat(Int.to_str(clientsScore), clientsText))))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
 
@@ -450,4 +452,4 @@ contract CryptoTaskLogic =
         let profile = state.ct_store.getProfile(pi)
         require(profile.pubkey == pubkey, "Profile not owned by the transaction signer")
 
-        (profile, pi)
+        (profile, pi)   //returns profile and profile index

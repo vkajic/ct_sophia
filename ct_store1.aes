@@ -2,8 +2,8 @@ contract CryptoTaskStore =
 
     record state = {
         owner : address,
-        ct_logic : address,
-        locked : bool,
+        ct_logic : address,     //address of the logic contract that is allowed to modify the state (this contract)
+        locked : bool,          //when locked, contract owner can no longer update the logic contract address, only logic contract itself can do that (with the idea that this is done as a community action, through voting or a similar process)
         profiles : map(int, profile),
         tasks : map(int, task),
         feedbacks : map(int, feedback),
@@ -13,25 +13,25 @@ contract CryptoTaskStore =
         keyToProfile : map(address, int) }        //NOT proof of profile ownership!!! Use profile.pubkey to check ownership
 
     record profile = {
-        pubkey : address,
-        pubkey_old : address,       //in case of unauthorized pwd change (centralized backend abuse), old pwd still valid for a certain time period. during the same period withdrawals not possible
+        pubkey : address,           //public key of the profile owner, can be derived from a pwd based seed (key stretching)
+        pubkey_old : address,       //in case of unauthorized pwd change (centralized backend abuse), old public key (old pwd) still valid for a certain time period. during the same period withdrawals not possible
         pwdChangedAtBlock : int,
         pwdChangedByReset : int,    //in case that pwd was changed by resetting to old pwd (pubkey_old)
-        clientInfoHash : string,
-        clientScore : int,
-        clientNumJobs : int,
+        clientInfoHash : string,    //hash of client role profile data
+        clientScore : int,          //sum of all ratings received so far as a client
+        clientNumJobs : int,        //total number of received feedbacks as a client
         clientTasks : list(int),
-        flancerInfoHash : string,
-        flancerScore : int,
-        flancerNumJobs : int,
+        flancerInfoHash : string,   //hash of flancer role profile data
+        flancerScore : int,         //sum of all ratings received so far as a flancer
+        flancerNumJobs : int,       //total number of received feedbacks as a flancer
         flancerTasks : list(int),
         active : int,               //boolean, used by the platform to block users if needed, community management possible
-        managed : int,              //boolean behaviour, whether centralized backend is allowed to set a new pwd
-        version : int }        
+        managed : int,              //boolean behaviour, whether centralized backend is allowed to set a new pwd (in case user forgot pwd)
+        version : int }             //version can be used to define how the data is structured, for example what exactly is hashed to produce fields such as clientInfoHash etc.
 
     record task = {
         client : int,
-        infoHash : string,
+        infoHash : string,                  //hash of task data: title, description etc.
         status : int,                       //CREATED: 0, FILLED: 1, ACCEPTING: 2
         published : int,                    //boolean, used by the platform to block tasks if needed, community management possible
         //application section START
@@ -51,17 +51,17 @@ contract CryptoTaskStore =
         mstoneStage : map(int, int),              //CREATED: 0, ACCEPTED: 1, FINISHED: 2, CANCELED: 3 (flancer cancelled), REJECTED: 4 (client cancelled)
         mstoneSolution : map(int, string),
         //milestone mappings END here
-        feedbacks : map(int, int),
+        feedbacks : map(int, int),                //profile index to feedback
         //application section END
         version : int }
 
     record feedback = {
         taskID : int,
         flancer : int,
-        clientsScore : int,
-        clientsText : string,
-        flancersScore : int,
-        flancersText : string,
+        clientsScore : int,     //rating that client received
+        clientsText : string,   //text that client received
+        flancersScore : int,    //rating that flancer received
+        flancersText : string,  //text that flancer received
         version : int }
 
 
