@@ -91,7 +91,7 @@ contract CryptoTaskLogic =
     record state = {
         owner : address,
         ct_store : CtStoreType,
-        logicVersion : int,
+        logicVersion : int,     //to protect against replay attacks if logic contract is updated to a new version and nonces start from 0 again
         timePeriod : int,       //time period in blocks that needs to pass after the pwd change before funds can be withdrawn, also pwd reset possible within time period
         nonces : map(address, int) }
 
