@@ -27,7 +27,8 @@ contract CryptoTaskStore =
         flancerTasks : list(int),
         active : int,               //boolean, used by the platform to block users if needed, community management possible
         managed : int,              //boolean behaviour, whether centralized backend is allowed to set a new pwd (in case user forgot pwd)
-        version : int }             //version can be used to define how the data is structured, for example what exactly is hashed to produce fields such as clientInfoHash etc.
+        version : int,              //version can be used to define how the data is structured, for example what exactly is hashed to produce fields such as clientInfoHash etc.
+        local : int }               //localization: 1 - EN, 2 - HR, ...
 
     record task = {
         client : int,
@@ -53,7 +54,8 @@ contract CryptoTaskStore =
         //milestone mappings END here
         feedbacks : map(int, int),                //profile index to feedback
         //application section END
-        version : int }
+        version : int,
+        local : int }                             //localization: 1 - EN, 2 - HR, ...
 
     record feedback = {
         taskID : int,
@@ -89,7 +91,7 @@ contract CryptoTaskStore =
 
 
  
-    public stateful entrypoint setTask(index : int, client : int, infoHash : string, status : int, published : int, version : int) =
+    public stateful entrypoint setTask(index : int, client : int, infoHash : string, status : int, published : int, version : int, local : int) =
         require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
 
         let new_task : task = {
@@ -109,7 +111,8 @@ contract CryptoTaskStore =
             mstoneStage = {},
             mstoneSolution = {},
             feedbacks = {},
-            version = version }
+            version = version,
+            local = local }
 
         put(state{tasks[index] = new_task})
 
@@ -177,8 +180,12 @@ contract CryptoTaskStore =
         require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
         put(state{tasks[index].version = version})
 
+    public stateful entrypoint setTaskLocal(index : int, local : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{tasks[index].local = local})
 
-    public stateful entrypoint setProfile(index : int, pubkey : address, clientInfoHash : string, flancerInfoHash : string, active : int, managed : int, version : int) =
+
+    public stateful entrypoint setProfile(index : int, pubkey : address, clientInfoHash : string, flancerInfoHash : string, active : int, managed : int, version : int, local : int) =
         require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
 
         let new_profile : profile = {
@@ -196,7 +203,8 @@ contract CryptoTaskStore =
             flancerTasks = [],
             active = active,
             managed = managed,
-            version = version }
+            version = version,
+            local = local }
 
         put(state{profiles[index] = new_profile})
 
@@ -260,8 +268,12 @@ contract CryptoTaskStore =
         require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
         put(state{profiles[index].version = version})
 
+    public stateful entrypoint setProfileLocal(index : int, local : int) =
+        require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
+        put(state{profiles[index].local = local})
 
-    public stateful entrypoint setFeedback(index : int, taskID : int, flancer : int, clientsScore : int, clientsText : string, flancersScore : int, flancersText : string, version : int) =      
+
+    public stateful entrypoint setFeedback(index : int, taskID : int, flancer : int, clientsScore : int, clientsText : string, flancersScore : int, flancersText : string, version : int, local : int) =
         require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
 
         let new_feedback : feedback = {

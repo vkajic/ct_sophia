@@ -14,7 +14,8 @@ contract CtStoreType =
         flancerTasks : list(int),
         active : int,
         managed : int,              //boolean behaviour
-        version : int }   
+        version : int,
+        local : int }
 
     record task = {
         client : int,
@@ -33,7 +34,8 @@ contract CtStoreType =
         mstoneStage : map(int, int),
         mstoneSolution : map(int, string),
         feedbacks : map(int, int),
-        version : int }
+        version : int,
+        local : int }
 
     record feedback = {
         taskID : int,
@@ -46,7 +48,7 @@ contract CtStoreType =
 
 
     entrypoint setCtLogic : address => unit
-    entrypoint setProfile : (int, address, string, string, int, int, int) => unit
+    entrypoint setProfile : (int, address, string, string, int, int, int, int) => unit
     entrypoint getProfile : int => profile
     entrypoint getLastProfileIndex : () => int
     entrypoint setLastProfileIndex : int => unit
@@ -65,7 +67,7 @@ contract CtStoreType =
     entrypoint setProfileFlancerScore : (int, int) => unit
     entrypoint setProfileFlancerNumJobs : (int, int) => unit
     entrypoint setProfileManaged : (int, int) => unit
-    entrypoint setTask : (int, int, string, int, int, int) => unit
+    entrypoint setTask : (int, int, string, int, int, int, int) => unit
     entrypoint getTask : int => task
     entrypoint getLastTaskIndex : () => int
     entrypoint setLastTaskIndex : int => unit
@@ -120,14 +122,14 @@ contract CryptoTaskLogic =
         state.nonces[pubkey=0]  
 
 
-    public stateful entrypoint signUp(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, clientInfoHash : string, flancerInfoHash : string, managed : int) =
+    public stateful entrypoint signUp(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, clientInfoHash : string, flancerInfoHash : string, managed : int, local : int) =
         //this check is used because centralized backend can be forwarding users' signed calls. It is checked that all arguments and meta-arguments were signed by the provided pubkey
-        require(functionName == "signUp" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(clientInfoHash, String.concat(flancerInfoHash, Int.to_str(managed) ))))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+        require(functionName == "signUp" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(clientInfoHash, String.concat(flancerInfoHash, String.concat(Int.to_str(managed), Int.to_str(local) )))))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
 
         require(state.ct_store.getKeyToProfile(pubkey) == 0, "Pubkey already in use")
         let pi = state.ct_store.getLastProfileIndex() + 1
         state.ct_store.setKeyToProfile(pubkey, pi)
-        state.ct_store.setProfile(pi, pubkey, clientInfoHash, flancerInfoHash, 1, managed, 1)
+        state.ct_store.setProfile(pi, pubkey, clientInfoHash, flancerInfoHash, 1, managed, 1, local)
         state.ct_store.setLastProfileIndex(pi)
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1}) 
 
@@ -191,12 +193,13 @@ contract CryptoTaskLogic =
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
 
 
-    public stateful entrypoint postTask(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, infoHash : string) =
-        require(functionName == "postTask" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, infoHash))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
+    public stateful entrypoint postTask(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, infoHash : string, local : int) =
+        require(functionName == "postTask" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(infoHash, Int.to_str(local) )))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
 
         let (profile, pi) = getMyProfile(pubkey)
+        require(profile.local == local, "You can only post tasks in your own localization")     //for now cross localization posting not possible
         let ti = state.ct_store.getLastTaskIndex() + 1
-        state.ct_store.setTask(ti, pi, infoHash, 0, 1, 1)
+        state.ct_store.setTask(ti, pi, infoHash, 0, 1, 1, local)
         state.ct_store.setLastTaskIndex(ti)
 
         state.ct_store.addProfileClientTask(pi, ti)
