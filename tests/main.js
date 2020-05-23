@@ -12,11 +12,11 @@ test();
 async function test() {
   await smartContract.initContract();
 
-  //await proxyCall(0, 'signUp', 'cripliNO', 'fripsYES', 1, 0);
+  //await proxyCall(0, 'signUp', 'cripliM', 'fripsM', 1, 0);
   //await proxyCall(0, 'editProfile', 'cinfoE', 'finfoEdit', 0);
-  //await proxyCall(1, 'resetPwd');
+  await proxyCall(0, 'resetPwd');
   //await proxyCall(3, 'changePwd', 'ak_aocemoguoTDBKGQQYxFZfZsnxZsRxoYb4VqRF1W4gpc22VMFv');
-  await proxyCall(0, 'postTask', 'MEGA 29', 0);
+  //await proxyCall(0, 'postTask', 'MEGA 29', 0);
   //await proxyCall(0, 'editTask', 1, 'Mega 2');
   //await proxyCall(2, 'closeApplications', 4);
   //await proxyCall(0, 'reopenApplications', 3);
