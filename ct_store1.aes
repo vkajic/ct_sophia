@@ -16,7 +16,7 @@ contract CryptoTaskStore =
         pubkey : address,           //public key of the profile owner, can be derived from a pwd based seed (key stretching)
         pubkey_old : address,       //in case of unauthorized pwd change (centralized backend abuse), old public key (old pwd) still valid for a certain time period. during the same period withdrawals not possible
         pwdChangedAtBlock : int,
-        pwdChangedByReset : int,    //in case that pwd was changed by resetting to old pwd (pubkey_old)
+        pwdChangedBy : int,         //0 - default, 1 - pwd was changed by changePwd, 2 - pwd was changed by changePwdManaged, 3 - pwd was changed by resetPwd
         clientInfoHash : string,    //hash of client role profile data
         clientScore : int,          //sum of all ratings received so far as a client
         clientNumJobs : int,        //total number of received feedbacks as a client
@@ -26,7 +26,7 @@ contract CryptoTaskStore =
         flancerNumJobs : int,       //total number of received feedbacks as a flancer
         flancerTasks : list(int),
         active : int,               //boolean, used by the platform to block users if needed, community management possible
-        managed : int,              //boolean behaviour, whether centralized backend is allowed to set a new pwd (in case user forgot pwd)
+        managed : int,              //0 - user has full control, 1 - centralized backend is allowed to set a new pwd (in case user forgot pwd), 2 - centralized backend has full control
         version : int,              //version can be used to define how the data is structured, for example what exactly is hashed to produce fields such as clientInfoHash etc.
         local : int }               //localization: 1 - EN, 2 - HR, ...
 
@@ -192,7 +192,7 @@ contract CryptoTaskStore =
             pubkey = pubkey,
             pubkey_old = pubkey,
             pwdChangedAtBlock = 0,
-            pwdChangedByReset = 0,
+            pwdChangedBy = 0,
             clientInfoHash = clientInfoHash,
             clientScore = 0,
             clientNumJobs = 0,
@@ -220,9 +220,9 @@ contract CryptoTaskStore =
         require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
         put(state{profiles[index].pwdChangedAtBlock = pwdChangedAtBlock})
 
-    public stateful entrypoint setProfilePwdChangedByReset(index : int, pwdChangedByReset : int) =
+    public stateful entrypoint setProfilePwdChangedBy(index : int, pwdChangedBy : int) =
         require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
-        put(state{profiles[index].pwdChangedByReset = pwdChangedByReset})
+        put(state{profiles[index].pwdChangedBy = pwdChangedBy})
 
     public stateful entrypoint setProfileClientInfoHash(index : int, clientInfoHash : string) =
         require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")

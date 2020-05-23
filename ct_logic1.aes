@@ -3,7 +3,7 @@ contract CtStoreType =
         pubkey : address,
         pubkey_old : address,       //in case of unauthorized pwd change, old pwd still valid for a certain time period. during the same period withdrawals not possible
         pwdChangedAtBlock : int,
-        pwdChangedByReset : int,
+        pwdChangedBy : int,
         clientInfoHash : string,
         clientScore : int,
         clientNumJobs : int,
@@ -13,7 +13,7 @@ contract CtStoreType =
         flancerNumJobs : int,
         flancerTasks : list(int),
         active : int,
-        managed : int,              //boolean behaviour
+        managed : int,
         version : int,
         local : int }
 
@@ -57,7 +57,7 @@ contract CtStoreType =
     entrypoint setProfilePubkey : (int, address) => unit
     entrypoint setProfilePubkeyOld : (int, address) => unit
     entrypoint setProfilePwdChangedAtBlock : (int, int) => unit
-    entrypoint setProfilePwdChangedByReset : (int, int) => unit
+    entrypoint setProfilePwdChangedBy : (int, int) => unit
     entrypoint setProfileClientInfoHash : (int, string) => unit
     entrypoint addProfileClientTask : (int, int) => unit
     entrypoint setProfileFlancerInfoHash : (int, string) => unit
@@ -157,7 +157,7 @@ contract CryptoTaskLogic =
         state.ct_store.setProfilePubkeyOld(pi, pubkey)
         state.ct_store.setProfilePubkey(pi, pubkey_new)
         state.ct_store.setProfilePwdChangedAtBlock(pi, Chain.block_height)
-        state.ct_store.setProfilePwdChangedByReset(pi, 0)
+        state.ct_store.setProfilePwdChangedBy(pi, 1)
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
 
 
@@ -173,7 +173,7 @@ contract CryptoTaskLogic =
         state.ct_store.setProfilePubkeyOld(pi, profile.pubkey)
         state.ct_store.setProfilePubkey(pi, pubkey_new)
         state.ct_store.setProfilePwdChangedAtBlock(pi, Chain.block_height)
-        state.ct_store.setProfilePwdChangedByReset(pi, 0)
+        state.ct_store.setProfilePwdChangedBy(pi, 2)
         
 
     //reset to the old pwd if within the time period, used if user thinks that centralized backend abused changePwdManaged
@@ -185,11 +185,12 @@ contract CryptoTaskLogic =
         let profile = state.ct_store.getProfile(pi)
         require(profile.pubkey_old == pubkey, "Profile was not owned by the transaction signer")
         require(Chain.block_height - profile.pwdChangedAtBlock < state.timePeriod, "Time period has passed")
+        require(profile.pwdChangedBy == 2, "Pwd reset possible only after changePwdManaged")
 
         state.ct_store.setKeyToProfile(pubkey, pi)
         state.ct_store.setProfilePubkey(pi, pubkey)
         state.ct_store.setProfilePwdChangedAtBlock(pi, Chain.block_height)
-        state.ct_store.setProfilePwdChangedByReset(pi, 1)
+        state.ct_store.setProfilePwdChangedBy(pi, 3)
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
 
 
@@ -439,13 +440,17 @@ contract CryptoTaskLogic =
 
 
     //TODO
-    //withdrawal not possible if pwd was changed recently, possible after timePeriod (unless if changed by resetPwd, pwdChangedByReset is true)
+    //withdrawal not possible if pwd was changed recently, possible after timePeriod (unless if changed by resetPwd, pwdChangedBy == 3)
     public stateful entrypoint withdraw() = { }
 
     //ADVANCED / OPTIONAL
-    //withdrawal a 2 stage action, even if pwd hacked, user can switch back to pwd_old
+    //withdrawal a 2 stage action, even if pwd hacked, user can call fullCustody
     //any pwd change invalidates withdrawCommitFlag that was set in this function
     //public stateful entrypoint withdrawCommit() = { }
+
+    //user can give centralized backend full custody over the account
+    //sets profile.managed = 2
+    //public stateful entrypoint fullCustody() = { }
 
 
 
