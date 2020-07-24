@@ -28,7 +28,7 @@ contract CryptoTaskStore =
         active : int,               //boolean, used by the platform to block users if needed, community management possible
         managed : int,              //0 - user has full control, 1 - centralized backend is allowed to set a new pwd (in case user forgot pwd), 2 - centralized backend has full control
         version : int,              //version can be used to define how the data is structured, for example what exactly is hashed to produce fields such as clientInfoHash etc.
-        local : int }               //localization: 1 - EN, 2 - HR, ...
+        local : int }               //localization: 1 - EN, 2 - HR, 3 - ES, 4 - VN...
 
     record task = {
         client : int,
@@ -55,7 +55,7 @@ contract CryptoTaskStore =
         feedbacks : map(int, int),                //profile index to feedback
         //application section END
         version : int,
-        local : int }                             //localization: 1 - EN, 2 - HR, ...
+        local : int }                             //localization: 1 - EN, 2 - HR, 3 - ES, 4 - VN...
 
     record feedback = {
         taskID : int,

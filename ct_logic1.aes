@@ -198,7 +198,10 @@ contract CryptoTaskLogic =
         require(functionName == "postTask" && Crypto.verify_sig(String.blake2b(String.concat(Int.to_str(logicVersion), String.concat(Int.to_str(nonce), String.concat(functionName, String.concat(infoHash, Int.to_str(local) )))) ), pubkey, sig) && logicVersion == state.logicVersion && nonce == state.nonces[pubkey=0], "Wrong function name, nonce, logicVersion or failed signature check" )
 
         let (profile, pi) = getMyProfile(pubkey)
-        require(profile.local == local, "You can only post tasks in your own localization")     //for now cross localization posting not possible
+
+        //for now cross localization posting is possible
+        //require(profile.local == local, "You can only post tasks in your own localization")     //cross localization posting not possible
+
         let ti = state.ct_store.getLastTaskIndex() + 1
         state.ct_store.setTask(ti, pi, infoHash, 0, 1, 1, local)
         state.ct_store.setLastTaskIndex(ti)
