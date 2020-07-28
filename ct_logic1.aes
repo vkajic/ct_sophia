@@ -99,7 +99,7 @@ contract CryptoTaskLogic =
 
 
     public stateful entrypoint init(store_address : CtStoreType, lv : int) = {
-        owner = Call.origin,
+        owner = Call.caller,
         ct_store = store_address,
         logicVersion = lv,
         timePeriod = 1440,      //3 days assuming 3 minute block time
@@ -163,7 +163,7 @@ contract CryptoTaskLogic =
 
     //centralized backend can change pwd for a managed account
     public stateful entrypoint changePwdManaged(pi : int, pubkey_new : address) =
-        require(Call.origin == state.owner, "Only contract owner can call this function")        
+        require(Call.caller == state.owner, "Only contract owner can call this function")
         let profile = state.ct_store.getProfile(pi)
         require(profile.managed > 0, "Profile needs to be in managed state")
         require(state.ct_store.getKeyToProfile(pubkey_new) == 0, "New pubkey already in use")

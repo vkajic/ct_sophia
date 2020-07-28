@@ -1,0 +1,8 @@
+//Contract to implement holding of funds and balances, probably AES (AE stable token)
+//
+//fundsTotal (all staked AES)
+//sharesTotal (all staked CTF)
+//fundsUsers[] (array of users' balances) - AES for using the platform escrow
+//sharesUsers[] (array of users' shares) - CTF for receiving dividends
+//pendingDividends - AES to be distributed in the next dividend payout round..
+//..(random selection used for round winners, user side proof of selection provided based on amount of CTF staked)

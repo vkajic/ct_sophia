@@ -69,8 +69,8 @@ contract CryptoTaskStore =
 
 
     public stateful entrypoint init() = {
-        owner = Call.origin,
-        ct_logic = Call.origin,
+        owner = Call.caller,
+        ct_logic = Call.caller,
         locked = false,
         profiles = {},
         tasks = {},
@@ -82,11 +82,11 @@ contract CryptoTaskStore =
 
 
     public stateful entrypoint setCtLogic(logic_address : address) = 
-        require(state.ct_logic == Call.caller || (state.owner == Call.origin && !state.locked), "Caller needs to be the logic contract or owner if the state contract is still unlocked")
+        require(state.ct_logic == Call.caller || (state.owner == Call.caller && !state.locked), "Caller needs to be the logic contract or owner if the state contract is still unlocked")
         put(state{ct_logic = logic_address})
 
     public stateful entrypoint lock() = 
-        require(state.owner == Call.origin && !state.locked, "Caller needs to be the owner")
+        require(state.owner == Call.caller && !state.locked, "Caller needs to be the owner")
         put(state{locked = true})
 
 
