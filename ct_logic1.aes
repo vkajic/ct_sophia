@@ -316,6 +316,8 @@ contract CryptoTaskLogic =
 
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
 
+        fi
+
 
     //freelancer can cancel an active work contract (application)
     public stateful entrypoint cancelContractFlancer(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int, clientsScore : int, clientsText : string) =
@@ -338,6 +340,8 @@ contract CryptoTaskLogic =
         state.ct_store.setProfileClientNumJobs(task.client, profileClient.clientNumJobs + 1)
 
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
+
+        fi
 
 
     //client can cancel an active work contract (application)
@@ -363,6 +367,8 @@ contract CryptoTaskLogic =
 
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
 
+        fi
+
 
     //client can leave feedback after flancer cancelled an active work contract (application)
     public stateful entrypoint leaveFeedbackClient(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int, flancer : int, flancersScore : int, flancersText : string) =
@@ -384,6 +390,8 @@ contract CryptoTaskLogic =
 
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
 
+        fi
+
 
     //flancer can leave feedback after client cancelled an active work contract (application)
     public stateful entrypoint leaveFeedbackFlancer(pubkey: address, sig: signature, logicVersion : int, nonce : int, functionName : string, ti : int, clientsScore : int, clientsText : string) =
@@ -403,6 +411,8 @@ contract CryptoTaskLogic =
         state.ct_store.setProfileClientNumJobs(task.client, profileClient.clientNumJobs + 1)
 
         put(state{nonces[pubkey] = state.nonces[pubkey=0] + 1})
+
+        fi
 
 
 
