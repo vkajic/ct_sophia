@@ -273,7 +273,7 @@ contract CryptoTaskStore =
         put(state{profiles[index].local = local})
 
 
-    public stateful entrypoint setFeedback(index : int, taskID : int, flancer : int, clientsScore : int, clientsText : string, flancersScore : int, flancersText : string, version : int, local : int) =
+    public stateful entrypoint setFeedback(index : int, taskID : int, flancer : int, clientsScore : int, clientsText : string, flancersScore : int, flancersText : string, version : int) =
         require(state.ct_logic == Call.caller, "Caller needs to be the logic contract")
 
         let new_feedback : feedback = {
