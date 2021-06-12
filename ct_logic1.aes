@@ -1,4 +1,6 @@
-contract CtStoreType =
+include "String.aes"
+
+contract interface CtStoreType =
     record profile = {
         pubkey : address,
         pubkey_old : address,       //in case of unauthorized pwd change, old pwd still valid for a certain time period. during the same period withdrawals not possible
@@ -88,7 +90,7 @@ contract CtStoreType =
 
 
 
-contract CryptoTaskLogic =
+main contract CryptoTaskLogic =
 
     record state = {
         owner : address,
