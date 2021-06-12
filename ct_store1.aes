@@ -1,4 +1,6 @@
-contract CryptoTaskStore =
+include "String.aes"
+
+main contract CryptoTaskStore =
 
     record state = {
         owner : address,
